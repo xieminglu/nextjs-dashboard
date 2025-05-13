@@ -1,0 +1,115 @@
+1. 入门
+    1. 安装
+    2. 创建模板
+    3. 文件夹结构
+    4. typeScript
+    5. 启动
+2. CSS
+    1. 全局样式（/app/layout.tsx、import '@/app/ui/global.css';）
+    2. Tailwind
+    3. css module（import styles from '@/app/ui/home.module.css';） 通过 styles 对象引用样式
+    4. clsx（根据条件切换样式类名）
+3. 字体和图像
+    1. 添加字体（本地加载）
+        1. 编辑 /app/ui/fonts.ts
+
+            import { Inter } from 'next/font/google';
+ 
+            export const inter = Inter({ subsets: ['latin'] });
+
+        2. /app/layout.tsx
+
+            import { inter } from '@/app/ui/fonts';
+
+            <body className={`${inter.className}`}>{children}</body>
+    2. 添加图像（自适应、懒加载）
+
+        import Image from 'next/image';
+
+        <Image
+            src="/hero-desktop.png"
+            width={1000}
+            height={760}
+            className="hidden md:block"
+            alt="Screenshots of the dashboard project showing desktop version"
+        />
+4. 布局和页面
+    1. 文件夹路由（一个文件夹是一个路由段，只有 page 文件内的内容才可公开访问。）
+    2. 仪表板布局（layout.tsx，导入到此文件的任何组件都将成为布局的一部分。只有页面组件会更新，而布局不会重新渲染。添加到根布局的任何 UI 都将在应用程序的所有页面之间共享）
+
+        export default function Layout({ children }: { children: React.ReactNode }) {
+            return (
+                <div className="flex h-screen flex-col md:flex-row md:overflow-hidden">
+                <div className="w-full flex-none md:w-64">
+                    <SideNav />
+                </div>
+                <div className="flex-grow p-6 md:overflow-y-auto md:p-12">{children}</div>
+                </div>
+            );
+        }
+5. 页面间导航
+    1. Link组件（使用<a>标签每次页面导航都会刷新整页！自动代码分割和预期，当Link组件出现在浏览器视口中，会进行预加载）
+
+        import Link from 'next/link';
+
+        <Link
+            key={link.name}
+            href={link.href}
+            className="flex h-[48px] grow items-center justify-center gap-2 rounded-md bg-gray-50 p-3 text-sm font-medium hover:bg-sky-100 hover:text-blue-600 md:flex-none md:justify-start md:p-2 md:px-3"
+            >
+            <LinkIcon className="w-6" />
+            <p className="hidden md:block">{link.name}</p>
+        </Link>
+
+    2. usePathname（获取当前链接）
+
+        由于 usePathname() 是一个 React hook，你需要将 nav-links.tsx 转换为客户端组件。在文件顶部添加 React 的 "use client" 指令，然后从 next/navigation 导入 usePathname() ：
+
+        import { usePathname } from 'next/navigation';
+
+        export default function NavLinks() {
+            const pathname = usePathname();
+            // ...
+        }
+7. 获取数据
+    1. 链接数据库
+    2. 请求瀑布流
+    3. 并发请求（Promise.all()，时间是以最耗时的那个计算）
+8. 静态和动态渲染
+    1. 静态渲染（加载快、SEO、减少服务器负载）
+    2. 动态渲染（实时数据）
+9. 流媒体
+    流式传输是一种数据传输技术，它允许您将路由分解为更小的“块”。
+
+    Streaming 与 React 的组件模型配合得很好，因为每个组件都可以被视为一个块 。
+    
+    在 Next.js 中实现流式传输有两种方法：
+
+        1. 在页面级别，使用 loading.tsx 文件（为您创建 <Suspense> ）。
+        2. 在组件级别，使用 <Suspense> 实现更精细的控制。
+
+    1. 页面流媒体
+
+        1. 通过添加 loading.tsx 文件实现，子文件夹页面也会受影响
+
+    2. 加载骨架
+
+        加载骨架是 UI 的简化版本。许多网站将其用作占位符（或备用方案），以指示用户内容正在加载。您在 loading.tsx 中添加的任何 UI 都将作为静态文件的一部分嵌入，并首先发送。然后，其余动态内容将从服务器流式传输到客户端。
+
+    路由组允许您将文件组织成逻辑组，而不会影响 URL 路径结构。当您使用括号 () 创建新文件夹时，其名称不会包含在 URL 路径中。因此， /dashboard/(overview)/page.tsx 会变成 /dashboard 。
+
+    3. 组件流媒体
+
+        import { Suspense } from 'react';
+
+        <Suspense fallback={<RevenueChartSkeleton />}>
+          <RevenueChart />
+        </Suspense>
+
+        RevenueChartSkeleton 为加载骨架，在数据未加载完成前显示。
+
+    4. 分组组件
+
+        创建一个新的 tsx 文件，将需要同时加载的组件放到该组件里面。（容器组件）
+
+        当你希望多个组件同时加载时，可以使用此模式。
