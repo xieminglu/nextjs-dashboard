@@ -136,3 +136,75 @@
         export const experimental_ppr = true;
 
     部分预渲染的优点在于，您无需更改代码即可使用它。只要您使用 Suspense 包装路由的动态部分，Next.js 就会知道路由的哪些部分是静态的，哪些是动态的。
+11. 搜索和分页
+
+    通过 url 保存状态。
+
+    useSearchParams：允许您访问当前 URL 的参数。例如，此 URL /dashboard/invoices?page=1&query=pending 的搜索参数将如下所示： {page: '1', query: 'pending'} 。
+    usePathname：允许您读取当前 URL 的路径名。例如，对于路由 /dashboard/invoices ， usePathname 将返回 '/dashboard/invoices' 。
+    useRouter：以编程方式启用客户端组件内路由之间的导航。
+
+    何时使用 useSearchParams() 钩子与 searchParams 属性？
+
+        一般来说，如果您想从客户端读取参数，请使用 useSearchParams() 钩子，因为这样可以避免返回服务器。
+
+    https://nextjs.org/learn/dashboard-app/adding-search-and-pagination
+
+    1. 去抖动
+
+        去抖动是一种编程实践，它限制函数触发的频率。
+
+        您可以通过几种方式实现去抖动，包括手动创建自己的去抖动函数。为了简单起见，我们将使用一个名为 use-debounce 库。
+
+        pnpm i use-debounce
+12. 表单数据
+    1. 创建服务器操作
+
+        通过添加 'use server' ，您可以将文件中的所有导出函数标记为服务器操作。
+
+        向 <form> 元素添加 action 属性，并调用 createInvoice 操作。
+    
+        从 formData 中提取数据，通过 get 方法。
+
+    2. 验证表单数据
+
+        为了方便您使用，我们将使用 Zod ，一个 TypeScript 优先的验证库，可以为您简化此任务。
+
+        import { z } from 'zod';
+ 
+        const FormSchema = z.object({
+            id: z.string(),
+            customerId: z.string(),
+            amount: z.coerce.number(),
+            status: z.enum(['pending', 'paid']),
+            date: z.string(),
+        });
+        
+        const CreateInvoice = FormSchema.omit({ id: true, date: true });
+
+        const { customerId, amount, status } = CreateInvoice.parse({
+            customerId: formData.get('customerId'),
+            amount: formData.get('amount'),
+            status: formData.get('status'),
+        });
+
+    3. 重新验证和重定向
+
+        Next.js 有一个客户端路由器缓存，它会将路由段暂时存储在用户的浏览器中。除了预取功能外，此缓存还能确保用户能够在路由之间快速导航，同时减少对服务器的请求数量。
+
+        由于您正在更新发票路由中显示的数据，因此您需要清除此缓存并触发对服务器的新请求。您可以使用 Next.js 中的 revalidatePath 函数来执行此操作：
+
+    4. 动态路由段
+
+        您可以通过将文件夹名称括在方括号中来创建动态路由段。例如， [id] 、 [post] 或 [slug] 。
+
+        除了 searchParams 之外，页面组件还接受一个名为 params 的 prop，你可以使用它来访问 id 。更新你的 <Page> 组件以接收该 prop：
+
+    5. 将 id 传递给服务器 Action
+
+        export async function updateInvoice(id: string, formData: FormData) {}
+
+        const updateInvoiceWithId = updateInvoice.bind(null, invoice.id);
+ 
+        return <form action={updateInvoiceWithId}>{/* ... */}</form>;
+13. 处理错误
