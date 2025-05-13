@@ -208,3 +208,118 @@
  
         return <form action={updateInvoiceWithId}>{/* ... */}</form>;
 13. 处理错误
+    
+    请注意， redirect 是在 try/catch 块之外调用的。这是因为 redirect 工作原理是抛出一个错误，而这个错误会被 catch 块捕获。为了避免这种情况，你可以在 try/catch 之后调用 redirect 。只有 try 成功后， redirect 才会被执行。
+
+    1. 使用 error.tsx 处理所有错误
+
+        https://nextjs.org/learn/dashboard-app/error-handling#handling-all-errors-with-errortsx
+
+        'use client';
+ 
+        import { useEffect } from 'react';
+        
+        export default function Error({
+            error,
+            reset,
+        }: {
+            error: Error & { digest?: string };
+            reset: () => void;
+        }) {
+            useEffect(() => {
+                // Optionally log the error to an error reporting service
+                console.error(error);
+            }, [error]);
+            
+            return (
+                <main className="flex h-full flex-col items-center justify-center">
+                <h2 className="text-center">Something went wrong!</h2>
+                <button
+                    className="mt-4 rounded-md bg-blue-500 px-4 py-2 text-sm text-white transition-colors hover:bg-blue-400"
+                    onClick={
+                    // Attempt to recover by trying to re-render the invoices route
+                    () => reset()
+                    }
+                >
+                    Try again
+                </button>
+                </main>
+            );
+        }
+
+        1. 'use client' 表示一个客户端组件。
+        2. error ：此对象是 JavaScript 原生 Error 的一个实例对象。
+        3. reset ：这是一个重置错误边界的函数。执行该函数时，将尝试重新渲染该路由段。
+
+    2. 使用 notFound 函数处理 404 错误
+
+        优雅地处理错误的另一种方法是使用 notFound 函数 error.tsx 可用于捕获未捕获的异常，而 notFound 则可用于尝试获取不存在的资源。
+
+        import { notFound } from 'next/navigation';
+
+        if (!invoice) {
+            notFound();
+        }
+
+        在 page.tsx 同文件夹目录下创建 not-found.tsx。
+
+        需要记住的是， notFound 将优先于 error.tsx ，因此当您想要处理更具体的错误时，您可以使用它！
+14. 无障碍设施
+    1. 可访问性
+
+        无障碍是指设计和实现人人（包括残障人士）均可使用的 Web 应用程序。它是一个涵盖诸多领域的广泛主题，例如键盘导航、语义 HTML、图像、颜色、视频等等。
+
+    2. 在 Next.js 中使用 ESLint 辅助功能插件
+
+        Next.js 包含 eslint-plugin-jsx-a11y 插件在其 ESLint 配置中，可帮助及早发现可访问性问题。例如，如果您的图片没有 alt 文本、 aria-* 和 role 属性使用不当等，此插件会发出警告。
+
+        或者，如果您想尝试一下，请在 package.json 文件中添加 next lint 作为脚本：
+
+        "scripts": {
+            "build": "next build",
+            "dev": "next dev",
+            "start": "next start",
+            "lint": "next lint"
+        },
+
+        pnpm lint
+
+    3. 提高表单可访问性
+
+        1. 语义化 HTML ：使用语义元素（ <input> 、 <option> 等）替代 <div> 。这使得辅助技术 (AT) 能够专注于输入元素，并向用户提供合适的上下文信息，使表单更易于浏览和理解。
+        2. 标签 ：包含 <label> 和 htmlFor 属性可确保每个表单字段都具有描述性文本标签。这不仅通过提供上下文增强了 AT 支持，还允许用户点击标签以将焦点集中在相应的输入字段上，从而提高了可用性。
+        3. 焦点轮廓 ：字段的样式经过适当设计，在获得焦点时会显示轮廓。这对于可访问性至关重要，因为它可以直观地指示页面上的活动元素，帮助键盘和屏幕阅读器用户了解他们在表单上的位置。您可以通过按 tab 来验证这一点。
+
+    4. 表单验证
+
+        1. 客户端验证
+
+            您可以通过多种方式在客户端验证表单。最简单的方法是依赖浏览器提供的表单验证功能，方法是将 required 属性添加到表单中的 <input> 和 <select> 元素。
+
+        2. 服务端验证
+
+            'use client';
+ 
+            // ...
+            import { useActionState } from 'react';
+
+            const initialState: State = { message: null, errors: {} };
+            const [state, formAction] = useActionState(createInvoice, initialState);
+
+            export async function createInvoice(prevState: State, formData: FormData) {}
+
+            useActionState 钩子：
+
+                接受两个参数： (action, initialState) 。
+
+                返回两个值： [state, formAction] - 表单状态，以及提交表单时要调用的函数。
+                
+                将您的 createInvoice 操作作为 useActionState 的参数传递，并在 <form action={}> 属性内调用 formAction 。
+
+                initialState 可以是任何你定义的值。
+
+            1. 将当前页面 tsx 声明为客户端组件
+            2. 从 react 导入 useActionState 钩子
+            3. 使用 useActionState 包装处理函数，并传入校验失败返回对象
+            4. 替换表单处理方法为 formAction
+            5. 引用 state 显示错误信息
