@@ -323,3 +323,166 @@
             3. 使用 useActionState 包装处理函数，并传入校验失败返回对象
             4. 替换表单处理方法为 formAction
             5. 引用 state 显示错误信息
+15. 添加身份验证
+    1. 安装 NextAuth.js
+
+        1. 安装：pnpm i next-auth@beta
+        2. 生成秘钥：openssl rand -base64 32
+        3. 在 .env 配置文件中配置秘钥变量 AUTH_SECRET=your-secret-key
+        4. 生产环境 vercel 配置环境变量，参考：https://vercel.com/docs/environment-variables
+
+    2. 设置 NextAuth.js
+
+        在项目根目录创建一个 auth.config.ts 文件，导出一个 authConfig 对象。
+
+        import type { NextAuthConfig } from 'next-auth';
+ 
+        export const authConfig = {
+            pages: {
+                signIn: '/login',
+            },
+            callbacks: {
+                authorized({ auth, request: { nextUrl } }) {
+                const isLoggedIn = !!auth?.user;
+                const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
+                if (isOnDashboard) {
+                    if (isLoggedIn) return true;
+                    return false; // Redirect unauthenticated users to login page
+                } else if (isLoggedIn) {
+                    return Response.redirect(new URL('/dashboard', nextUrl));
+                }
+                return true;
+                },
+            },
+            providers: [], // Add providers with an empty array for now
+        } satisfies NextAuthConfig;
+
+        您可以使用 pages 选项指定自定义登录、退出和错误页面的路由。这不是必需的，但是通过在 pages 选项中添加 signIn: '/login' ，用户将被重定向到我们的自定义登录页面，而不是 NextAuth.js 的默认页面。
+
+        authorized 回调用于验证请求是否有权使用 Next.js 中间件访问页面。它在请求完成之前调用，并接收一个包含 auth 和 request 属性的对象。 auth 属性包含用户的会话， request 属性包含传入的请求。
+
+    3. 启用 NextAuth.js
+
+        1. 在项目的根目录中，创建一个名为 middleware.ts 的文件并粘贴以下代码：
+
+            import NextAuth from 'next-auth';
+            import { authConfig } from './auth.config';
+            
+            export default NextAuth(authConfig).auth;
+            
+            export const config = {
+                // https://nextjs.org/docs/app/building-your-application/routing/middleware#matcher
+                matcher: ['/((?!api|_next/static|_next/image|.*\\.png$).*)'],
+            };
+
+            这里，你使用 authConfig 对象初始化 NextAuth.js，并导出 auth 属性。你还使用了中间件中的 matcher 选项来指定它应该在特定路径上运行。
+
+        2. 密码哈希
+
+            在将密码存储到数据库之前，最好先对其进行哈希处理。在为数据库做种时，你使用了一个名为 bcrypt 的包来对用户密码进行哈希处理，然后再将其存储到数据库中。
+
+            但是，你需要为 bcrypt 包创建一个单独的文件。这是因为 bcrypt 依赖的是 Next.js 中间件所不具备的 Node.js API。
+
+        3. 创建一个名为 auth.ts 的新文件来传播您的 authConfig 对象：
+
+            import NextAuth from 'next-auth';
+            import Credentials from 'next-auth/providers/credentials';
+            import { authConfig } from './auth.config';
+            import { z } from 'zod';
+            import type { User } from '@/app/lib/definitions';
+            import bcrypt from 'bcrypt';
+            import postgres from 'postgres';
+            
+            const sql = postgres(process.env.POSTGRES_URL!, { ssl: 'require' });
+            
+            async function getUser(email: string): Promise<User | undefined> {
+            try {
+                const user = await sql<User[]>`SELECT * FROM users WHERE email=${email}`;
+                return user[0];
+            } catch (error) {
+                console.error('Failed to fetch user:', error);
+                throw new Error('Failed to fetch user.');
+            }
+            }
+            
+            export const { auth, signIn, signOut } = NextAuth({
+                ...authConfig,
+                providers: [
+                    Credentials({
+                    async authorize(credentials) {
+                        const parsedCredentials = z
+                        .object({ email: z.string().email(), password: z.string().min(6) })
+                        .safeParse(credentials);
+                
+                        if (parsedCredentials.success) {
+                        const { email, password } = parsedCredentials.data;
+                        const user = await getUser(email);
+                        if (!user) return null;
+
+                        const passwordsMatch = await bcrypt.compare(password, user.password);
+                        if (passwordsMatch) return user;
+                        }
+                
+                        return null;
+                    },
+                    }),
+                ],
+            });
+
+            Providers 是一个数组，用于列出不同的登录选项，例如 Google 或 GitHub。在本课程中，我们将重点介绍如何使用 Credentials 提供程序。 仅有的。
+
+            其它登录方式参考：https://authjs.dev/getting-started/providers/credentials-tutorial
+16. 添加元数据
+
+    元数据对于 SEO 和可共享性至关重要。
+
+    1. 添加元数据
+
+        1. 基于配置 ：在 layout.js 或 page.js 文件中导出静态元 metadata 对象或动态 generateMetadata 函数 。
+        2. 基于文件 ：Next.js 有一系列专门用于元数据目的的特殊文件：
+
+            favicon.ico 、 apple-icon.jpg 和 icon.jpg ：用于网站图标和图标
+            opengraph-image.jpg 和 twitter-image.jpg ：用于社交媒体图像
+            robots.txt ：提供搜索引擎抓取的指令
+            sitemap.xml ：提供有关网站结构的信息
+
+        通过这两个选项，Next.js 将自动为您的页面生成相关的 <head> 元素。
+
+        在您的 /public 文件夹中，您会注意到有两个图像： favicon.ico 和 opengraph-image.jpg 。
+
+        将这些图像移动到 /app 文件夹的根目录。
+
+    2. 基于配置
+
+        /app/layout.tsx
+
+        import { Metadata } from 'next';
+ 
+        export const metadata: Metadata = {
+            title: 'Acme Dashboard',
+            description: 'The official Next.js Course Dashboard, built with App Router.',
+            metadataBase: new URL('https://next-learn-dashboard.vercel.sh'),
+        };
+
+    3. 标题模板
+
+        /app/layout.tsx
+
+        import { Metadata } from 'next';
+ 
+        export const metadata: Metadata = {
+            title: {
+                template: '%s | Acme Dashboard',
+                default: 'Acme Dashboard',
+            },
+            description: 'The official Next.js Learn Dashboard built with App Router.',
+            metadataBase: new URL('https://next-learn-dashboard.vercel.sh'),
+        };
+
+        模板中的 %s 将被替换为特定的页面标题。
+
+        在对应的页面中，添加标题，以替换模板。
+
+        export const metadata: Metadata = {
+            title: 'Invoices',
+        };
